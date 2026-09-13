@@ -7,5 +7,8 @@ __pycache__/
 .env
 .venv/
 
+# Personal credentials — NEVER commit
+cookies.txt
+
 # OS
 .DS_Store

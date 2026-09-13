@@ -381,6 +381,40 @@
   var storeJobId = null, sessId = null, sessAnchorFired = false;
   var LARGE_FILE = 1.5 * 1024 * 1024 * 1024;
 
+  /* ---------------- API base (this page can be hosted anywhere —
+     e.g. Netlify — and talk to the YTFetch server running on your VPS) ---- */
+  function getApiBase() {
+    if (window.YTFETCH_API) return String(window.YTFETCH_API).replace(/\/+$/, "");
+    try { return (localStorage.getItem("ytfetch_api") || "").replace(/\/+$/, ""); } catch (e) { return ""; }
+  }
+  var API_BASE = getApiBase();
+  function api(p) { return API_BASE + p; }
+  function setApiBase(u) {
+    API_BASE = (u || "").replace(/\/+$/, "");
+    try { localStorage.setItem("ytfetch_api", API_BASE); } catch (e) {}
+  }
+  async function ensureApi() {
+    try {
+      var r = await fetch(api("/api/health"), { cache: "no-store" });
+      var j = await r.json().catch(function () { return null; });
+      return !!(j && j.ok);
+    } catch (e) { return false; }
+  }
+  async function requireApi() {
+    if (await ensureApi()) return true;
+    var u = window.prompt(
+      "YTFetch needs its download server (the part that fetches from YouTube and builds the MP4).\n\n" +
+      "Enter your server's address, e.g.  https://ytfetch.example.com\n" +
+      "(the address of where the YTFetch API is running)"
+    );
+    if (u === null) return false;
+    setApiBase(u);
+    if (!(await ensureApi())) {
+      if (!window.confirm("Couldn't reach that server. Keep the address anyway?")) setApiBase("");
+    }
+    return true;
+  }
+
   function show(el) { el.hidden = false; }
   function hide(el) { el.hidden = true; }
   function showError(msg) { $("error-msg").textContent = msg; show($("error")); }
@@ -538,7 +572,7 @@
     $("dl-label").textContent = "Starting…";
     hide($("done-box")); hide($("confirm-box"));
     try {
-      var res = await fetch("/api/download", {
+      var res = await fetch(api("/api/download"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: currentUrl, quality: selectedQ, mode: "auto" })
@@ -578,7 +612,7 @@
     if (n > 6000) { failDownload("The download took too long. Please try again."); return; }
     pollTimer = setTimeout(async function () {
       try {
-        var res = await fetch("/api/job/" + storeJobId);
+        var res = await fetch(api("/api/job/" + storeJobId));
         var j = await res.json().catch(function () { return {}; });
         if (!res.ok) throw new Error(j.detail || "Download session lost. Please try again.");
         if (j.state === "processing") {
@@ -630,7 +664,7 @@
     if (n > 6000) { failDownload("The stream took too long. Please try again."); return; }
     pollTimer = setTimeout(async function () {
       try {
-        var res = await fetch("/api/sess/" + sessId);
+        var res = await fetch(api("/api/sess/" + sessId));
         var s = await res.json().catch(function () { return {}; });
         if (!res.ok) throw new Error(s.detail || "Stream session lost. Please try again.");
         if (s.state === "preparing") {
@@ -640,7 +674,7 @@
           if (!sessAnchorFired) {
             sessAnchorFired = true;
             var a = document.createElement("a");
-            a.href = "/api/sess/" + sessId + "/file";
+            a.href = api("/api/sess/" + sessId + "/file");
             a.download = s.filename || "video.mp4";
             document.body.appendChild(a);
             a.click();
@@ -692,7 +726,7 @@
 
   $("stream-cancel").addEventListener("click", function () {
     if (!sessId) return;
-    fetch("/api/sess/" + sessId + "/cancel", { method: "POST" }).catch(function () {});
+    fetch(api("/api/sess/" + sessId + "/cancel"), { method: "POST" }).catch(function () {});
     failDownload("Stream cancelled.");
   });
 
@@ -718,7 +752,7 @@
     var link = $("save-link");
     if (opts.file) {
       link.hidden = false;
-      link.href = opts.file;
+      link.href = API_BASE + opts.file;
     } else {
       link.hidden = true;
     }
@@ -726,7 +760,7 @@
     show($("done-box"));
     if (opts.auto && opts.file) {
       var a = document.createElement("a");
-      a.href = opts.file;
+      a.href = API_BASE + opts.file;
       a.download = opts.name || "video.mp4";
       document.body.appendChild(a);
       a.click();
@@ -788,7 +822,7 @@
     }
     if (saved.kind === "j" && saved.job_id) {
       storeJobId = saved.job_id;
-      fetch("/api/job/" + storeJobId).then(function (r) {
+      fetch(api("/api/job/" + storeJobId)).then(function (r) {
         return r.json().catch(function () { return {}; });
       }).then(function (j) {
         if (!j.id) { clearState(); return; }
@@ -805,7 +839,7 @@
       }).catch(function () { clearState(); });
     } else if (saved.kind === "s" && saved.ses_id) {
       // a stream can't survive a page reload (the browser connection closed)
-      fetch("/api/sess/" + saved.ses_id).then(function (r) {
+      fetch(api("/api/sess/" + saved.ses_id)).then(function (r) {
         return r.json().catch(function () { return {}; });
       }).then(function (s) {
         clearState();
@@ -816,7 +850,7 @@
       }).catch(function () { clearState(); });
     }
     function abortSession(s) {
-      if (s && s.id) fetch("/api/sess/" + s.id + "/cancel", { method: "POST" }).catch(function () {});
+      if (s && s.id) fetch(api("/api/sess/" + s.id + "/cancel"), { method: "POST" }).catch(function () {});
     }
   })();
 })();

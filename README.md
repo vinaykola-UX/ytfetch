@@ -61,6 +61,33 @@ sudo ./deploy.sh    # installs deps, venv, systemd service → http://SERVER_IP:
 ```
 Requires `ffmpeg` (deploy.sh installs it). Open the firewall port first.
 
+### Host the UI on Netlify (or anywhere) + the API on your server
+The frontend is a single static file, so it can live on Netlify/Vercel/GitHub
+Pages while the download engine runs on your free VPS:
+
+1. Deploy `static/` (or the repo root) to Netlify as usual.
+2. Run the API on your server (deploy.sh).
+3. Point the page at the API — either set it once in the UI (it asks for the
+   server address on first use and remembers it), or hard-code it in
+   `static/index.html`:
+   ```html
+   <script>window.YTFETCH_API = "https://your-api.example.com";</script>
+   ```
+The API allows cross-origin requests (CORS), so the two can live on different
+domains.
+
+### YouTube "sign in to confirm you're not a bot" on some videos
+YouTube occasionally enforces a sign-in/bot check on specific videos from
+datacenter IPs. The app shows a friendly message for this. To make
+sign-in-protected videos work on *your* server:
+
+1. Install the "Get cookies.txt LOCALLY" browser extension.
+2. Go to youtube.com, sign in, export **cookies.txt**.
+3. Put that file in the app folder (as `cookies.txt`) or point
+   `YTFETCH_COOKIES=/path/to/cookies.txt` in the systemd unit. Restart the service.
+
+⚠️ `cookies.txt` is a personal credential — it is git-ignored, never commit it.
+
 ### Best FREE hosting (fast responses)
 This app needs a **long-running Python + ffmpeg backend** (not a static host like
 Netlify/Vercel — downloads are processed server-side). Best always-free options:

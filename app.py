@@ -36,6 +36,7 @@ from pathlib import Path
 
 import yt_dlp
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -43,7 +44,17 @@ BASE_DIR = Path(__file__).resolve().parent
 JOBS_DIR = BASE_DIR / "jobs"
 JOBS_DIR.mkdir(exist_ok=True)
 
-app = FastAPI(title="YTFetch", version="2.0")
+app = FastAPI(title="YTFetch", version="2.1")
+
+# The UI may be hosted anywhere (Netlify, Vercel, GitHub Pages) and talk to
+# this API cross-origin, so allow any origin.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
+)
 
 YOUTUBE_RE = re.compile(
     r"^(https?://)?(www\.|m\.|music\.|youtube-nocookie\.)?(youtube\.com|youtu\.be)/\S+",
@@ -100,7 +111,9 @@ def friendly_error(msg: str) -> str:
     m = re.sub(r"^\[[^\]]+\]\s*[^:]*:\s*", "", m)
     low = m.lower()
     if "sign in to confirm" in low or "not a bot" in low or "robot check" in low or "captcha" in low:
-        return "YouTube is temporarily blocking automated access from this server. Please wait a minute and try again."
+        return ("YouTube is requiring sign-in for this video (bot check) from this server's IP. "
+                "Wait a minute and retry — or, on your own server, add a cookies.txt from your "
+                "Google account so sign-in-protected videos work.")
     if "private video" in low or "this video is private" in low:
         return "This is a private video and can't be downloaded."
     if "unavailable" in low:
@@ -260,6 +273,29 @@ INFO_OPTS = {
 }
 
 
+def cookie_opts() -> dict:
+    """Use the site owner's YouTube cookies when provided (cookies.txt next to
+    app.py, or set YTFETCH_COOKIES=/path/to/cookies.txt). Needed for videos
+    where YouTube enforces a bot-check/sign-in from server IPs."""
+    path = os.environ.get("YTFETCH_COOKIES") or str(BASE_DIR / "cookies.txt")
+    try:
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            return {"cookiefile": path}
+    except OSError:
+        pass
+    return {}
+
+
+def cookie_cli_args() -> list:
+    path = os.environ.get("YTFETCH_COOKIES") or str(BASE_DIR / "cookies.txt")
+    try:
+        if os.path.exists(path) and os.path.getsize(path) > 0:
+            return ["--cookies", path]
+    except OSError:
+        pass
+    return []
+
+
 @app.get("/api/health")
 def health():
     return {"ok": True, "service": "YTFetch"}
@@ -268,8 +304,10 @@ def health():
 @app.get("/api/info")
 def get_info(url: str):
     url = parse_video_url(url)
+    opts = dict(INFO_OPTS)
+    opts.update(cookie_opts())
     try:
-        with yt_dlp.YoutubeDL(INFO_OPTS) as ydl:
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as e:
         raise HTTPException(status_code=422, detail=friendly_error(str(e)))
@@ -329,8 +367,10 @@ def create_download(req: DownloadRequest):
         raise HTTPException(status_code=400, detail="Invalid mode.")
 
     # Validate + measure the file before committing to a mode.
+    opts = dict(INFO_OPTS)
+    opts.update(cookie_opts())
     try:
-        with yt_dlp.YoutubeDL(INFO_OPTS) as ydl:
+        with yt_dlp.YoutubeDL(opts) as ydl:
             info = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError as e:
         raise HTTPException(status_code=422, detail=friendly_error(str(e)))
@@ -419,6 +459,7 @@ def _store_worker(job_id: str, url: str, quality: str, jobdir: Path, job: dict):
         "progress_hooks": [progress_hook],
         "postprocessor_hooks": [pp_hook],
     }
+    opts.update(cookie_opts())
     try:
         with yt_dlp.YoutubeDL(opts) as ydl:
             ydl.extract_info(url, download=True)
@@ -517,8 +558,10 @@ def _stream_worker(s: dict):
             "yt-dlp", "-f", format_selector(s["quality"]),
             "--merge-output-format", "mp4", "--no-part",
             "--retries", "5", "--fragment-retries", "10",
-            "--socket-timeout", "30", "-o", "-", s["url"],
+            "--socket-timeout", "30",
         ]
+        ydl_cmd += cookie_cli_args()
+        ydl_cmd += ["-o", "-", s["url"]]
         ydl_proc = subprocess.Popen(ydl_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         s["proc_ydl"] = ydl_proc
 
