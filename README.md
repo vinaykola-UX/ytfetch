@@ -63,16 +63,25 @@ Requires `ffmpeg` (deploy.sh installs it). Open the firewall port first.
 
 ### Host the UI on Netlify (or anywhere) + the API on your server
 The frontend is a single static file, so it can live on Netlify/Vercel/GitHub
-Pages while the download engine runs on your free VPS:
+Pages while the download engine runs on a free server:
 
-1. Deploy `static/` (or the repo root) to Netlify as usual.
-2. Run the API on your server (deploy.sh).
-3. Point the page at the API — either set it once in the UI (it asks for the
-   server address on first use and remembers it), or hard-code it in
-   `static/index.html`:
+**Easiest — Render (one click):**
+1. https://render.com → **New → Blueprint** → connect this repo (it finds
+   `render.yaml` automatically) → **Apply**.
+2. Wait ~2 min → you get an URL like `https://ytfetch-api.onrender.com`.
+3. Open your Netlify page → paste that URL once (it's remembered), or
+   hard-code it in `static/index.html`:
    ```html
-   <script>window.YTFETCH_API = "https://your-api.example.com";</script>
+   <script>window.YTFETCH_API = "https://ytfetch-api.onrender.com";</script>
    ```
+   (On Netlify: Settings → Site details → add that `<script>` tag above the
+   main `<script>` in `index.html`.)
+4. Done — Netlify hosts the page, Render runs the downloads.
+
+Note: Render's free instance sleeps after 15 min of idle; the first request
+after that takes ~30–60 s to wake. For a server that NEVER sleeps, use
+Oracle Cloud Always Free (A1) with `sudo ./deploy.sh` instead.
+
 The API allows cross-origin requests (CORS), so the two can live on different
 domains.
 

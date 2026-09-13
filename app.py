@@ -41,8 +41,10 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 BASE_DIR = Path(__file__).resolve().parent
-JOBS_DIR = BASE_DIR / "jobs"
-JOBS_DIR.mkdir(exist_ok=True)
+# Where finished files are kept. Override on hosts with read-only app dirs
+# (e.g. Render): YTFETCH_JOBS_DIR=/tmp/ytfetch-jobs
+JOBS_DIR = Path(os.environ.get("YTFETCH_JOBS_DIR") or (BASE_DIR / "jobs"))
+JOBS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="YTFetch", version="2.1")
 

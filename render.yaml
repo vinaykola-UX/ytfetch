@@ -1,0 +1,16 @@
+# One-click deploy: https://render.com → New → Blueprint → connect this repo.
+# Free tier: 750 h/month, 512 MB RAM, Singapore region (fast for India).
+services:
+  - type: web
+    name: ytfetch-api
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: "apt-get update -y && apt-get install -y -q ffmpeg && pip install -r requirements.txt"
+    startCommand: "uvicorn app:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      - key: YTFETCH_JOBS_DIR
+        value: "/tmp/ytfetch-jobs"
