@@ -1,0 +1,11 @@
+# Runtime artifacts
+jobs/
+__pycache__/
+*.pyc
+
+# Local env
+.env
+.venv/
+
+# OS
+.DS_Store
