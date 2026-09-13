@@ -53,6 +53,33 @@ pip install yt-dlp fastapi uvicorn
 ```
 Then open http://localhost:8000.
 
+### One-command deploy (Ubuntu/Debian)
+```bash
+git clone https://github.com/vinaykola-UX/ytfetch.git
+cd ytfetch
+sudo ./deploy.sh    # installs deps, venv, systemd service → http://SERVER_IP:8000
+```
+Requires `ffmpeg` (deploy.sh installs it). Open the firewall port first.
+
+### Best FREE hosting (fast responses)
+This app needs a **long-running Python + ffmpeg backend** (not a static host like
+Netlify/Vercel — downloads are processed server-side). Best always-free options:
+
+1. **Oracle Cloud Always Free — Ampere A1** (recommended): permanently free,
+   up to 4 ARM cores + 24 GB RAM + 200 GB disk, always-on (no sleeping). The only
+   big free tier that can *store* 30-hour 1080p files. ~10 Gbps network.
+2. **Google Cloud free e2-micro** (1 vCPU / 1 GB / 30 GB disk): easiest to spin up,
+   good if you pick a region close to your users (e.g. Mumbai for India);
+   30 GB disk is plenty for stream mode + medium files.
+3. **AWS Free Tier t4g/t3.micro** (12 months) / **Fly.io, Render, Railway** —
+   fine for short videos, but free tiers sleep, cap RAM/disk, and will struggle
+   with multi-hour, multi-GB downloads.
+
+⚠️ Free VPS IPs are datacenter IPs: YouTube occasionally rate-limits them
+("sign in to confirm you're not a bot"). The app detects this and shows a friendly
+"try again in a minute" message; it clears on its own.
+
+
 ## Files
 
 | File | Purpose |
